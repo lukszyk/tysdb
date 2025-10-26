@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Licznik Punktów - Tysiąc</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+</head>
+
+<body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-3">
+
+    <div class="w-full max-w-4xl mx-auto">
+        <header class="text-center mb-4">
+            <h5 class="text-2xl font-bold text-teal-400">Licznik Punktów - Tysiąc</h5>
+        </header>
+
+        <!-- EKRAN USTAWIEŃ POCZĄTKOWYCH -->
+        <div id="setup-screen" class="card space-y-3">
+            <h2 class="text-lg font-semibold text-center">Nowa Gra</h2>
+            <div>
+                <label for="player-count" class="block mb-1 text-sm font-medium text-slate-300">Liczba graczy:</label>
+                <select id="player-count" class="input-field">
+                    <option value="2" selected>2 graczy</option>
+                    <option value="3">3 gracze</option>
+                    <option value="4">4 gracze</option>
+                </select>
+            </div>
+            <div id="player-names-container" class="space-y-2"></div>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <button id="start-game-btn" class="btn btn-primary w-full">Rozpocznij Grę</button>
+                <!-- ZMIANA 1: Dodany przycisk do wczytywania gry -->
+                <button id="show-load-game-btn" class="btn btn-secondary w-full">Wczytaj Grę</button>
+            </div>
+            <button id="show-stats-btn" class="btn btn-secondary w-full mt-2">Pokaż Statystyki</button>
+        </div>
+
+        <!-- ZMIANA 2: Dodany cały nowy ekran do wczytywania gry -->
+        <div id="load-game-screen" class="hidden card space-y-4 text-center">
+            <h2 class="text-lg font-semibold">Wczytaj zapisaną grę</h2>
+            <p id="load-game-message" class="text-slate-400">Sprawdzanie...</p>
+            <button id="load-game-btn" class="btn btn-primary w-full hidden">Wczytaj stan gry</button>
+            <button id="back-from-load-btn" class="btn btn-secondary w-full">Wróć</button>
+        </div>
+
+        <!-- EKRAN GŁÓWNY GRY -->
+        <div id="game-screen" class="hidden">
+            <div id="status-message-container" class="text-center mb-4"></div>
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+                 <div id="round-info-display" class="bg-slate-700 p-2 rounded-lg text-center text-sm font-medium w-full sm:w-auto flex-grow"></div>
+                <button id="rotate-first-player-btn" class="btn btn-secondary text-xs px-2 py-1 flex-shrink-0">
+                    Ręcznie obróć gracza rozpoczynającego ♛
+                </button>
+            </div>
+            <div id="scoreboard" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4"></div>
+            <div class="card space-y-3 mb-4">
+                <h3 class="text-base font-semibold">Dodaj punkty za rundę:</h3>
+                <div id="score-inputs" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+                <button id="add-round-btn" class="btn btn-primary w-full">Dodaj Wynik Rundy</button>
+            </div>
+            <div class="card mb-4">
+                <h3 class="text-sm font-semibold mb-2">Historia Rund (Usuń wpis):</h3>
+                <div id="round-history-container" class="max-h-32 overflow-y-auto"></div>
+            </div>
+            <div class="flex flex-row gap-2">
+                <!-- ZMIANA 3: Dodany przycisk do zapisu stanu gry -->
+                <button id="save-game-btn" class="btn btn-secondary w-1/2" disabled>Zapisz grę</button>
+                <button id="game-to-stats-btn" class="btn btn-secondary w-1/2">Statystyki</button>
+            </div>
+            <button id="back-to-menu-btn" class="btn bg-red-600 hover:bg-red-700 text-white w-full mt-2">Porzuć Grę / Nowa Gra</button>
+        </div>
+
+        <!-- EKRAN STATYSTYK -->
+        <div id="stats-screen" class="hidden card space-y-4">
+            <h2 class="text-lg font-semibold text-center">Statystyki Gier</h2>
+            <div id="stats-summary" class="text-center bg-slate-700 p-3 rounded-lg"></div>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <button id="back-from-stats-btn" class="btn btn-primary w-full">Wróć</button>
+                <button id="clear-stats-btn" class="btn bg-red-600 hover:bg-red-700 text-white w-full">Wyczyść Statystyki</button>
+            </div>
+        </div>
+
+        <!-- MODALE (bez zmian) -->
+        <div id="winner-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
+            <div class="card text-center space-y-3 max-w-sm w-full">
+                <h2 class="text-xl font-bold text-teal-400">Koniec Gry!</h2>
+                <p id="winner-message" class="text-base"></p>
+                <div id="final-scores" class="text-left space-y-1 text-sm"></div>
+                <button id="modal-back-to-menu-btn" class="btn btn-primary w-full">Powrót do Menu</button>
+            </div>
+        </div>
+        <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
+            <div class="card text-center space-y-4 max-w-xs w-full">
+                <p id="confirm-message" class="text-base font-medium"></p>
+                <div class="flex gap-3 justify-center">
+                    <button id="confirm-yes-btn" class="btn bg-red-600 hover:bg-red-700 text-white w-1/2">Tak</button>
+                    <button id="confirm-no-btn" class="btn btn-secondary w-1/2">Anuluj</button>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="app-footer">
+            <p>Stworzone przez <strong>Łukasz Stężycki</strong>. © 2025</p>
+        </footer>
+    </div>
+
+<script src="app.js"></script>
+</body>
+</html>
