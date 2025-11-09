@@ -1,73 +1,81 @@
- /* Twoje style CSS (bez zmian) */
-        body {
-            font-family: 'Inter', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .hidden { display: none; }
-        .card {
-            background-color: #1e293b;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            transition: all 0.3s ease-in-out;
-        }
-        .card.is-leader {
-            
-        }
-        .btn {
-            display: inline-block;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            font-size: 0.875rem;
-            text-align: center;
-            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
-            cursor: pointer;
-        }
-        .btn-primary { background-color: #14b8a6; color: white; }
-        .btn-primary:hover { background-color: #0d9488; }
-        .btn-secondary { background-color: #475569; color: #f1f5f9; }
-        .btn-secondary:hover { background-color: #334155; }
-        .btn-disabled {
-            background-color: #334155;
-            color: #94a3b8;
-            cursor: not-allowed;
-            opacity: 0.7;
-            pointer-events: none;
-        }
-        .btn-disabled:hover { background-color: #334155; }
-        .input-field {
-            width: 100%;
-            background-color: #334155;
-            border: 1px solid #475569;
-            color: #f1f5f9;
-            padding: 0.5rem;
-            border-radius: 0.5rem;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .input-field:focus {
-            outline: none;
-            border-color: #14b8a6;
-            box-shadow: 0 0 0 2px #14b8a680;
-        }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-        #round-history-container table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-        #round-history-container th, #round-history-container td { padding: 0.3rem 0.2rem; text-align: center; }
-        #round-history-container th {
-            background-color: #334155; font-weight: 600; border-bottom: 2px solid #1e293b;
-            position: sticky; top: 0; z-index: 10;
-        }
-        #round-history-container tr:nth-child(even) { background-color: #2d3846; }
-        .history-score { font-weight: 600; color: #14b8aa; }
-        .score-danger { color: #fdee00; }
-        .score-negative { color: #f87171; }
-        .app-footer {
-            text-align: center;
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid #ddd;
-            font-size: 0.75rem;
-            color: #666;
-        }
+body {
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+.hidden { display: none; }
+.card {
+    background-color: #1e293b;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    transition: all 0.3s ease-in-out;
+}
+.card.is-leader {
+    /* Możesz dodać tu style dla lidera, np. obramowanie */
+    /* border: 2px solid #14b8a6; */
+}
+.btn {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-align: center;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+    cursor: pointer;
+    border: none;
+}
+.btn:active {
+    transform: scale(0.98);
+}
+.btn-primary { background-color: #14b8a6; color: white; }
+.btn-primary:hover { background-color: #0d9488; }
+.btn-secondary { background-color: #475569; color: #f1f5f9; }
+.btn-secondary:hover { background-color: #334155; }
+.btn-disabled {
+    background-color: #334155;
+    color: #94a3b8;
+    cursor: not-allowed;
+    opacity: 0.7;
+    pointer-events: none;
+}
+.btn-disabled:hover { background-color: #334155; }
+.input-field {
+    width: 100%;
+    background-color: #334155;
+    border: 1px solid #475569;
+    color: #f1f5f9;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field:focus {
+    outline: none;
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 2px #14b8a680;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+#round-history-container table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+#round-history-container th, #round-history-container td { padding: 0.3rem 0.2rem; text-align: center; }
+#round-history-container th {
+    background-color: #334155; font-weight: 600; border-bottom: 2px solid #1e293b;
+    position: sticky; top: 0; z-index: 10;
+}
+#round-history-container tr:nth-child(even) { background-color: #2d3846; }
+.history-score { font-weight: 600; color: #14b8aa; }
+.score-danger { color: #facc15; } /* Zmieniono na żółty dla lepszej widoczności */
+.score-negative { color: #f87171; }
+.app-footer {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #334155;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+/* NOWA ZMIANA: Styl dla pola, które zostało świadomie wypełnione */
+.input-field.input-filled {
+    border-color: #14b8a6; /* Ten sam kolor co focus, dla spójności */
+}

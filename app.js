@@ -48,7 +48,6 @@ const gameToStatsBtn = document.getElementById('game-to-stats-btn');
 const roundHistoryContainer = document.getElementById('round-history-container');
 const statsSummary = document.getElementById('stats-summary');
 const backFromStatsBtn = document.getElementById('back-from-stats-btn');
-const clearStatsBtn = document.getElementById('clear-stats-btn');
 const modalBackToMenuBtn = document.getElementById('modal-back-to-menu-btn');
 const roundInfoDisplay = document.getElementById('round-info-display');
 const statusMessageContainer = document.getElementById('status-message-container');
@@ -58,16 +57,19 @@ const loadGameBtn = document.getElementById('load-game-btn');
 const deleteGameBtn = document.getElementById('delete-game-btn');
 const backFromLoadBtn = document.getElementById('back-from-load-btn');
 const saveGameBtn = document.getElementById('save-game-btn');
+const saveAndEndBtn = document.getElementById('save-and-end-btn');
+const correctLastRoundBtn = document.getElementById('correct-last-round-btn');
+
 
 // Stan Aplikacji
 let gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
+let gameWinnerData = null;
 const defaultPlayerNames = ['Kulik', 'Miś', 'Gracz 3', 'Gracz 4'];
 const LEADER_CLASS = 'is-leader';
 
 // --- Funkcje do obsługi zapisu/wczytywania w chmurze ---
 
 async function handleShowLoadScreen() {
-    console.log('handleShowLoadScreen wywołana');
     setupScreen.classList.add('hidden');
     loadGameScreen.classList.remove('hidden');
     loadGameMessage.textContent = 'Sprawdzanie...';
@@ -75,16 +77,12 @@ async function handleShowLoadScreen() {
     deleteGameBtn.classList.add('hidden');
 
     if (!db) {
-        console.error('Brak połączenia z Firebase');
         loadGameMessage.textContent = 'Błąd: Brak połączenia z bazą danych.';
         return;
     }
 
     try {
-        console.log('Sprawdzam zapis w Firebase...');
         const doc = await savedGameStateRef.get();
-        console.log('Dokument istnieje:', doc.exists);
-        
         if (doc.exists) {
             loadGameMessage.textContent = 'Znaleziono zapisaną grę. Chcesz ją kontynuować?';
             loadGameBtn.classList.remove('hidden');
@@ -118,9 +116,7 @@ async function loadGameStateFromFirebase() {
             gameState = doc.data();
             gameState.isActive = true;
             gameState.loadedFromFirebase = true;
-            
             renderGameScreen();
-            
             loadGameScreen.classList.add('hidden');
             setupScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
@@ -144,16 +140,13 @@ async function deleteSavedGameState() {
 }
 
 async function handleDeleteSavedGame() {
-    console.log('handleDeleteSavedGame wywołana');
     showCustomConfirm('Czy na pewno chcesz usunąć zapisaną grę z chmury? Tej operacji nie można cofnąć.', async () => {
-        console.log('Potwierdzono usunięcie');
         try {
             await deleteSavedGameState();
             showTemporaryMessage('Zapisana gra została usunięta z chmury.', false);
             loadGameMessage.textContent = 'Brak zapisanej gry w chmurze.';
             loadGameBtn.classList.add('hidden');
             deleteGameBtn.classList.add('hidden');
-            console.log('Usunięcie zakończone pomyślnie');
         } catch (error) {
             console.error("Błąd usuwania zapisu gry:", error);
             showTemporaryMessage('Błąd podczas usuwania zapisu gry!', true);
@@ -164,20 +157,34 @@ async function handleDeleteSavedGame() {
 // --- Funkcje gry ---
 
 function addRoundScore() {
+    const filledInputsCount = scoreInputs.querySelectorAll('.input-filled').length;
+    if (filledInputsCount < gameState.players.length) {
+        showTemporaryMessage('Wypełnij punkty dla wszystkich graczy (wpisz 0, jeśli gracz nic nie zdobył).', true);
+        const firstEmptyInput = [...scoreInputs.querySelectorAll('input')].find(input => !input.classList.contains('input-filled'));
+        firstEmptyInput?.focus();
+        return;
+    }
+
     const roundScores = {};
-    let validationFailed = false, roundingOccurred = false;
+    let roundingOccurred = false;
     const firstInput = document.getElementById('score-input-0');
     
     for (let i = 0; i < gameState.players.length; i++) {
         const player = gameState.players[i];
         const input = document.getElementById(`score-input-${i}`);
-        let scoreValue = parseInt(input.value, 10) || 0;
+        let scoreValue = parseInt(input.value, 10);
         
+        if (Math.abs(scoreValue) > 360) {
+            showTemporaryMessage(`Błąd: Maksymalna liczba punktów w rundzie to 360. Gracz "${player.name}" ma wpisane ${scoreValue}.`, true);
+            input.focus();
+            return; 
+        }
+
         if (scoreValue !== 0) {
             if (player.score >= 800 && scoreValue > 0 && scoreValue < 100) {
-                validationFailed = true;
-                input.value = '';
-                break;
+                showTemporaryMessage('Gracz z wynikiem 800+ musi ugrać minimum 100 punktów (dla punktów dodatnich).', true);
+                input.focus();
+                return;
             }
             if (scoreValue > 0) {
                 let roundedScore = Math.round(scoreValue / 10) * 10;
@@ -189,12 +196,6 @@ function addRoundScore() {
         roundScores[player.name] = scoreValue;
     }
     
-    if (validationFailed) {
-        showTemporaryMessage('Gracz z wynikiem 800+ musi ugrać minimum 100 punktów (dla punktów dodatnich).', true);
-        firstInput?.focus();
-        return;
-    }
-
     gameState.players.forEach(p => p.score += roundScores[p.name]);
     gameState.history.unshift(roundScores);
     
@@ -209,35 +210,57 @@ function addRoundScore() {
     renderRoundHistory();
     checkWinner();
     
-    gameState.players.forEach((_, i) => document.getElementById(`score-input-${i}`).value = '');
-    if (roundingOccurred) showTemporaryMessage('Wynik dodatni został zaokrąglony do najbliższej 10-tki.', false);
-    renderRoundInfo();
-    firstInput?.focus();
+    if(gameState.isActive) {
+        gameState.players.forEach((_, i) => {
+            const input = document.getElementById(`score-input-${i}`);
+            input.value = '';
+            input.classList.remove('input-filled');
+        });
+        if (roundingOccurred) showTemporaryMessage('Wynik dodatni został zaokrąglony do najbliższej 10-tki.', false);
+        renderRoundInfo();
+        firstInput?.focus();
 
-    if (gameState.history.length > 0) {
-        saveGameBtn.disabled = false;
-        saveGameBtn.classList.remove('btn-disabled');
-    }
-}
-
-function endGame(winner) {
-    if (gameState.isActive) {
-        saveStats(winner);
-        if (gameState.loadedFromFirebase) {
-            deleteSavedGameState();
+        if (gameState.history.length > 0) {
+            saveGameBtn.disabled = false;
+            saveGameBtn.classList.remove('btn-disabled');
         }
     }
-
-    document.getElementById('winner-message').textContent = `Wygrywa ${winner.name}! Gratulacje!`;
-    document.getElementById('final-scores').innerHTML = '<h4>Końcowe wyniki:</h4>' + gameState.players.map(p => `<div class="flex justify-between"><span>${p.name}:</span><span class="font-semibold">${p.score} pkt</span></div>`).join('');
-    winnerModal.classList.remove('hidden');
-    winnerModal.classList.add('flex');
-    clearGameState(false);
 }
 
+function showWinnerModal(winner) {
+    gameState.isActive = false; 
+    gameWinnerData = winner;
+
+    document.getElementById('winner-message').textContent = `Wygrywa ${winner.name}! Gratulacje!`;
+    document.getElementById('final-scores').innerHTML = '<h4>Końcowe wyniki:</h4>' + 
+        [...gameState.players].sort((a,b) => b.score - a.score).map(p => 
+            `<div class="flex justify-between"><span>${p.name}:</span><span class="font-semibold">${p.score} pkt</span></div>`
+        ).join('');
+    
+    winnerModal.classList.remove('hidden');
+    winnerModal.classList.add('flex');
+}
+
+async function saveAndEndGame() {
+    if (!gameWinnerData) return;
+
+    saveAndEndBtn.disabled = true;
+    saveAndEndBtn.textContent = 'Zapisywanie...';
+
+    await saveStats(gameWinnerData);
+    
+    if (gameState.loadedFromFirebase) {
+        await deleteSavedGameState();
+    }
+    
+    resetGame();
+
+    saveAndEndBtn.disabled = false;
+    saveAndEndBtn.textContent = 'Zapisz wynik i zakończ';
+}
+
+
 function resetGame() {
-    // ZMIANA: Przy porzuceniu gry NIE usuwamy zapisu z Firebase
-    // Zapis zostanie usunięty tylko gdy ktoś wygra (w funkcji endGame)
     clearGameState(true);
     
     gameScreen.classList.add('hidden');
@@ -251,14 +274,13 @@ function resetGame() {
 
 function clearGameState(fullClear = true) {
     gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
+    gameWinnerData = null;
     if (fullClear) {
         localStorage.removeItem(GAME_STATE_KEY);
     }
     saveGameBtn.disabled = true;
     saveGameBtn.classList.add('btn-disabled');
 }
-
-// --- Pomocnicze funkcje ---
 
 let messageTimeout;
 function showTemporaryMessage(message, isError = false) {
@@ -282,7 +304,7 @@ function renderRoundInfo() {
 
 function recalculateScores() {
     gameState.players.forEach(p => p.score = 0);
-    gameState.history.forEach(round => {
+    [...gameState.history].reverse().forEach(round => {
         gameState.players.forEach(player => {
             player.score += round[player.name] || 0;
         });
@@ -332,19 +354,50 @@ function handleInputKeydown(e) {
         e.preventDefault();
         const currentIndex = parseInt(e.target.dataset.playerIndex, 10);
         const nextIndex = currentIndex + 1;
-        if (nextIndex < gameState.players.length) document.getElementById(`score-input-${nextIndex}`)?.focus();
-        else addRoundScore();
+        if (nextIndex < gameState.players.length) {
+            document.getElementById(`score-input-${nextIndex}`)?.focus();
+        } else {
+            addRoundBtn.click();
+        }
     }
 }
 
 function renderGameScreen() {
     scoreboard.innerHTML = '';
     scoreInputs.innerHTML = '';
+
     gameState.players.forEach((player, i) => {
-        scoreboard.innerHTML += `<div class="card text-center"><div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div></div>`;
-        scoreInputs.innerHTML += `<div><label for="score-input-${i}" class="block mb-1 text-xs font-medium text-slate-400">${player.name}</label><input type="number" id="score-input-${i}" class="input-field text-center text-sm" placeholder="0" data-player-index="${i}"></div>`;
-        document.getElementById(`score-input-${i}`).addEventListener('keydown', handleInputKeydown);
+        const scoreCard = document.createElement('div');
+        scoreCard.className = 'card text-center';
+        scoreCard.innerHTML = `
+            <div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div>
+            <div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>
+        `;
+        scoreboard.appendChild(scoreCard);
+
+        const inputContainer = document.createElement('div');
+        const label = document.createElement('label');
+        label.setAttribute('for', `score-input-${i}`);
+        label.className = 'block mb-1 text-xs font-medium text-slate-400';
+        label.textContent = player.name;
+        
+        const inputElement = document.createElement('input');
+        inputElement.type = 'number';
+        inputElement.id = `score-input-${i}`;
+        inputElement.className = 'input-field text-center text-sm';
+        inputElement.placeholder = '0';
+        inputElement.dataset.playerIndex = i;
+
+        inputElement.addEventListener('keydown', handleInputKeydown);
+        inputElement.addEventListener('input', (e) => {
+            e.target.classList.toggle('input-filled', e.target.value.trim() !== '');
+        });
+        
+        inputContainer.appendChild(label);
+        inputContainer.appendChild(inputElement);
+        scoreInputs.appendChild(inputContainer);
     });
+
     updateScoreValues();
     updateFirstPlayerMarker();
     renderRoundHistory();
@@ -352,7 +405,9 @@ function renderGameScreen() {
     document.getElementById('score-input-0')?.focus();
 }
 
+
 function updateScoreValues() {
+    if (!gameState.isActive && !gameWinnerData) return;
     const maxScore = Math.max(...gameState.players.map(p => p.score));
     gameState.players.forEach((p, i) => {
         const scoreEl = document.getElementById(`player-score-${i}`);
@@ -400,12 +455,37 @@ function startGame() {
 }
 
 function checkWinner() {
+    if (!gameState.isActive) return;
+
     const winners = gameState.players.filter(p => p.score >= 1000);
     if (winners.length > 0) {
         const winner = winners.reduce((prev, curr) => (prev.score > curr.score) ? prev : curr);
-        endGame(winner);
+        showWinnerModal(winner);
     }
 }
+
+function handleCorrectLastRound() {
+    if (gameState.history.length === 0) return;
+
+    winnerModal.classList.add('hidden');
+    winnerModal.classList.remove('flex');
+
+    gameState.isActive = true;
+    gameWinnerData = null;
+
+    gameState.history.shift();
+    recalculateScores();
+
+    const inputs = scoreInputs.querySelectorAll('input');
+    inputs.forEach(input => {
+        input.value = '';
+        input.classList.remove('input-filled');
+    });
+    inputs[0]?.focus();
+
+    showTemporaryMessage('Ostatnia runda została cofnięta. Możesz teraz poprawić wynik.', false);
+}
+
 
 function updateFirstPlayerMarker() {
     gameState.players.forEach((p, i) => {
@@ -448,8 +528,6 @@ function handleBackToMenu() {
     }
 }
 
-// --- Modalne ---
-
 let currentYesHandler, currentNoHandler;
 
 function showCustomAlert(msg) {
@@ -490,8 +568,6 @@ function showCustomConfirm(msg, onConfirm, showNo = true) {
     confirmNoBtn.addEventListener('click', currentNoHandler);
 }
 
-// --- Statystyki ---
-
 async function saveStats(winner) {
     if (!db) return;
     try {
@@ -524,26 +600,6 @@ async function getStatsFromFirebase() {
     return stats;
 }
 
-async function handleClearStats() {
-    showCustomConfirm('Czy na pewno chcesz usunąć WSZYSTKIE statystyki zwycięstw z Firebase? Tej operacji nie można cofnąć.', async () => {
-        if (!db) {
-            showTemporaryMessage("Brak połączenia z bazą danych.", true);
-            return;
-        }
-        try {
-            showTemporaryMessage("Rozpoczynam usuwanie rankingu...", false);
-            const winsSnapshot = await db.collection(FIREBASE_COLLECTION_WINS).get();
-            const deletePromises = winsSnapshot.docs.map(doc => doc.ref.delete());
-            await Promise.all(deletePromises);
-            showTemporaryMessage("Wszystkie statystyki zwycięstw zostały usunięte.", false);
-            showStats();
-        } catch (error) {
-            console.error("Błąd podczas usuwania statystyk: ", error);
-            showTemporaryMessage("Wystąpił błąd podczas usuwania statystyk.", true);
-        }
-    });
-}
-
 async function showStats() {
     const stats = await getStatsFromFirebase();
     const totalGames = Object.values(stats.playerWins).reduce((sum, current) => sum + current, 0);
@@ -553,8 +609,9 @@ async function showStats() {
         summaryHtml += `<h4 class="mt-3 mb-2 font-semibold text-sm">Ranking zwycięstw:</h4>`;
         summaryHtml += `<div class="space-y-1 text-sm">`;
         sortedWins.forEach(([name, wins]) => {
-            const winPercentage = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(0) : 0;
-            summaryHtml += `<div class="flex justify-center gap-2"><span>${name}:</span> <span class="font-semibold">${wins} wygrane (${winPercentage}%)</span></div>`;
+            // ZMIANA: Zmiana toFixed(0) na toFixed(2) dla procentów
+            const winPercentage = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(2) : '0.00';
+            summaryHtml += `<div class="flex justify-center gap-2"><span>${name}:</span> <span class="font-semibold"><span class="font-bold text-teal-400">${wins}</span> wygrane (${winPercentage}%)</span></div>`;
         });
         summaryHtml += `</div>`;
     } else {
@@ -584,8 +641,9 @@ startGameBtn.addEventListener('click', startGame);
 addRoundBtn.addEventListener('click', addRoundScore);
 rotateFirstPlayerBtn.addEventListener('click', rotateFirstPlayer);
 backToMenuBtn.addEventListener('click', handleBackToMenu);
+saveAndEndBtn.addEventListener('click', saveAndEndGame);
 modalBackToMenuBtn.addEventListener('click', resetGame);
-clearStatsBtn.addEventListener('click', handleClearStats);
+correctLastRoundBtn.addEventListener('click', handleCorrectLastRound);
 
 // Inicjalizacja
 generatePlayerNameInputs();

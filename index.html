@@ -75,25 +75,28 @@
             <button id="back-to-menu-btn" class="btn bg-red-600 hover:bg-red-700 text-white w-full mt-2">Porzuć Grę / Nowa Gra</button>
         </div>
 
-        <!-- EKRAN STATYSTYK -->
+        <!-- EKRAN STATYSTYK (Z USUNIĘTYM PRZYCISKIEM) -->
         <div id="stats-screen" class="hidden card space-y-4">
             <h2 class="text-lg font-semibold text-center">Statystyki Gier</h2>
             <div id="stats-summary" class="text-center bg-slate-700 p-3 rounded-lg"></div>
-            <div class="flex flex-col sm:flex-row gap-2">
-                <button id="back-from-stats-btn" class="btn btn-primary w-full">Wróć</button>
-                <button id="clear-stats-btn" class="btn bg-red-600 hover:bg-red-700 text-white w-full">Wyczyść Statystyki</button>
-            </div>
+            <!-- Usunięto przycisk czyszczenia statystyk, został tylko przycisk "Wróć" -->
+            <button id="back-from-stats-btn" class="btn btn-primary w-full">Wróć</button>
         </div>
 
         <!-- MODALE -->
         <div id="winner-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-40">
-            <div class="card text-center space-y-3 max-w-sm w-full">
+            <div class="card text-center space-y-4 max-w-sm w-full">
                 <h2 class="text-xl font-bold text-teal-400">Koniec Gry!</h2>
                 <p id="winner-message" class="text-base"></p>
-                <div id="final-scores" class="text-left space-y-1 text-sm"></div>
-                <button id="modal-back-to-menu-btn" class="btn btn-primary w-full">Powrót do Menu</button>
+                <div id="final-scores" class="text-left space-y-1 text-sm bg-slate-800 p-3 rounded-lg"></div>
+                <div class="flex flex-col gap-2">
+                    <button id="save-and-end-btn" class="btn btn-primary w-full">Zapisz wynik i zakończ</button>
+                    <button id="correct-last-round-btn" class="btn btn-secondary w-full">Popraw ostatnią rundę</button>
+                    <button id="modal-back-to-menu-btn" class="btn bg-slate-600 hover:bg-slate-700 text-slate-200 w-full">Zakończ bez zapisywania</button>
+                </div>
             </div>
         </div>
+        
         <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
             <div class="card text-center space-y-4 max-w-xs w-full">
                 <p id="confirm-message" class="text-base font-medium"></p>
