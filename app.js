@@ -23,11 +23,12 @@ try {
 // Nowe referencje i stałe
 const FIREBASE_COLLECTION_WINS = 'tysiac_win_stats';
 const savedGameStateRef = db.collection('saved_game_state').doc('current');
-const GAME_STATE_KEY = 'tysiacGameState_legacy';
+const GAME_STATE_KEY = 'tysiacGameState_v2'; // Zmieniono klucz, aby uniknąć konfliktów ze starymi zapisami
 
-// Referencje DOM
+// Referencje DOM (bez zmian)
 const setupScreen = document.getElementById('setup-screen');
 const gameScreen = document.getElementById('game-screen');
+// ... (reszta referencji bez zmian, pominięte dla zwięzłości)
 const statsScreen = document.getElementById('stats-screen');
 const loadGameScreen = document.getElementById('load-game-screen');
 const winnerModal = document.getElementById('winner-modal');
@@ -67,20 +68,47 @@ let gameWinnerData = null;
 const defaultPlayerNames = ['Kulik', 'Miś', 'Gracz 3', 'Gracz 4'];
 const LEADER_CLASS = 'is-leader';
 
-// --- Funkcje do obsługi zapisu/wczytywania w chmurze ---
 
+// NOWA ZMIANA: Funkcja do automatycznego zapisu w localStorage
+function saveGameStateToLocalStorage() {
+    if (gameState.isActive && gameState.players.length > 0) {
+        localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState));
+    }
+}
+
+// NOWA ZMIANA: Funkcja do próby wczytania gry z localStorage przy starcie
+function tryToLoadGameFromLocalStorage() {
+    const savedStateJSON = localStorage.getItem(GAME_STATE_KEY);
+    if (savedStateJSON) {
+        try {
+            const savedState = JSON.parse(savedStateJSON);
+            // Sprawdzamy, czy zapisany stan jest sensowny
+            if (savedState.isActive && savedState.players.length > 0) {
+                gameState = savedState;
+                renderGameScreen();
+                setupScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+                showTemporaryMessage('Wczytano ostatnią niezakończoną grę.', false);
+                return true; // Zwracamy sukces
+            }
+        } catch (error) {
+            console.error('Błąd parsowania stanu gry z localStorage:', error);
+            localStorage.removeItem(GAME_STATE_KEY); // Usuwamy uszkodzone dane
+        }
+    }
+    return false; // Nie udało się wczytać gry
+}
+
+
+// --- Funkcje do obsługi zapisu/wczytywania w chmurze ---
+// (bez zmian, pominięte dla zwięzłości)
 async function handleShowLoadScreen() {
     setupScreen.classList.add('hidden');
     loadGameScreen.classList.remove('hidden');
     loadGameMessage.textContent = 'Sprawdzanie...';
     loadGameBtn.classList.add('hidden');
     deleteGameBtn.classList.add('hidden');
-
-    if (!db) {
-        loadGameMessage.textContent = 'Błąd: Brak połączenia z bazą danych.';
-        return;
-    }
-
+    if (!db) { loadGameMessage.textContent = 'Błąd: Brak połączenia z bazą danych.'; return; }
     try {
         const doc = await savedGameStateRef.get();
         if (doc.exists) {
@@ -90,25 +118,16 @@ async function handleShowLoadScreen() {
         } else {
             loadGameMessage.textContent = 'Brak zapisanej gry w chmurze.';
         }
-    } catch (error) {
-        console.error("Błąd sprawdzania zapisu gry:", error);
-        loadGameMessage.textContent = 'Błąd połączenia z bazą danych: ' + error.message;
-    }
+    } catch (error) { console.error("Błąd sprawdzania zapisu gry:", error); loadGameMessage.textContent = 'Błąd połączenia z bazą danych: ' + error.message; }
 }
-
 async function saveCurrentGameState() {
     if (!gameState.isActive || gameState.history.length === 0) return;
-    
     try {
         await savedGameStateRef.set(gameState);
         gameState.loadedFromFirebase = true;
         showTemporaryMessage('Stan gry został zapisany w chmurze!', false);
-    } catch (error) {
-        console.error("Błąd zapisu stanu gry:", error);
-        showTemporaryMessage('Błąd podczas zapisu stanu gry!', true);
-    }
+    } catch (error) { console.error("Błąd zapisu stanu gry:", error); showTemporaryMessage('Błąd podczas zapisu stanu gry!', true); }
 }
-
 async function loadGameStateFromFirebase() {
     try {
         const doc = await savedGameStateRef.get();
@@ -120,25 +139,15 @@ async function loadGameStateFromFirebase() {
             loadGameScreen.classList.add('hidden');
             setupScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
-        } else {
-            showCustomAlert('Nie znaleziono zapisu gry.');
-        }
-    } catch (error) {
-        console.error("Błąd wczytywania stanu gry:", error);
-        showCustomAlert('Wystąpił błąd podczas wczytywania gry.');
-    }
+            saveGameStateToLocalStorage(); // Zapisz też lokalnie
+        } else { showCustomAlert('Nie znaleziono zapisu gry.'); }
+    } catch (error) { console.error("Błąd wczytywania stanu gry:", error); showCustomAlert('Wystąpił błąd podczas wczytywania gry.'); }
 }
-
 async function deleteSavedGameState() {
     if (!db) return;
-    try {
-        await savedGameStateRef.delete();
-        console.log('Zapisany stan gry został usunięty.');
-    } catch (error) {
-        console.error('Błąd usuwania zapisanego stanu gry:', error);
-    }
+    try { await savedGameStateRef.delete(); console.log('Zapisany stan gry został usunięty.'); } 
+    catch (error) { console.error('Błąd usuwania zapisanego stanu gry:', error); }
 }
-
 async function handleDeleteSavedGame() {
     showCustomConfirm('Czy na pewno chcesz usunąć zapisaną grę z chmury? Tej operacji nie można cofnąć.', async () => {
         try {
@@ -147,12 +156,10 @@ async function handleDeleteSavedGame() {
             loadGameMessage.textContent = 'Brak zapisanej gry w chmurze.';
             loadGameBtn.classList.add('hidden');
             deleteGameBtn.classList.add('hidden');
-        } catch (error) {
-            console.error("Błąd usuwania zapisu gry:", error);
-            showTemporaryMessage('Błąd podczas usuwania zapisu gry!', true);
-        }
+        } catch (error) { console.error("Błąd usuwania zapisu gry:", error); showTemporaryMessage('Błąd podczas usuwania zapisu gry!', true); }
     });
 }
+
 
 // --- Funkcje gry ---
 
@@ -209,6 +216,9 @@ function addRoundScore() {
     updateFirstPlayerMarker();
     renderRoundHistory();
     checkWinner();
+
+    // NOWA ZMIANA: Zapisz stan po dodaniu rundy
+    saveGameStateToLocalStorage();
     
     if(gameState.isActive) {
         gameState.players.forEach((_, i) => {
@@ -230,6 +240,9 @@ function addRoundScore() {
 function showWinnerModal(winner) {
     gameState.isActive = false; 
     gameWinnerData = winner;
+
+    // NOWA ZMIANA: Przed pokazaniem modala usuwamy zapis lokalny, bo gra jest już w stanie "końcowym"
+    localStorage.removeItem(GAME_STATE_KEY);
 
     document.getElementById('winner-message').textContent = `Wygrywa ${winner.name}! Gratulacje!`;
     document.getElementById('final-scores').innerHTML = '<h4>Końcowe wyniki:</h4>' + 
@@ -276,21 +289,20 @@ function clearGameState(fullClear = true) {
     gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
     gameWinnerData = null;
     if (fullClear) {
+        // NOWA ZMIANA: `clearGameState` teraz zawsze czyści localStorage
         localStorage.removeItem(GAME_STATE_KEY);
     }
     saveGameBtn.disabled = true;
     saveGameBtn.classList.add('btn-disabled');
 }
 
+// ... reszta funkcji pomocniczych (bez zmian, pominięte dla zwięzłości)
 let messageTimeout;
 function showTemporaryMessage(message, isError = false) {
     statusMessageContainer.innerHTML = `<div class="p-2 rounded-lg ${isError ? 'bg-red-800 text-white' : 'bg-yellow-600 text-slate-900'} font-semibold">${message}</div>`;
     clearTimeout(messageTimeout);
-    messageTimeout = setTimeout(() => {
-        statusMessageContainer.innerHTML = '';
-    }, 5000);
+    messageTimeout = setTimeout(() => { statusMessageContainer.innerHTML = ''; }, 5000);
 }
-
 function renderRoundInfo() {
     if (!gameState.isActive) return;
     const currentRound = gameState.history.length + 1;
@@ -301,13 +313,10 @@ function renderRoundInfo() {
     rotateFirstPlayerBtn.disabled = !isRound1;
     rotateFirstPlayerBtn.title = isRound1 ? "Dostępne tylko w Rundzie 1." : "Blokada: Dostępne tylko w Rundzie 1.";
 }
-
 function recalculateScores() {
     gameState.players.forEach(p => p.score = 0);
     [...gameState.history].reverse().forEach(round => {
-        gameState.players.forEach(player => {
-            player.score += round[player.name] || 0;
-        });
+        gameState.players.forEach(player => { player.score += round[player.name] || 0; });
     });
     if (gameState.players.length === 2) {
         gameState.firstPlayerIndex = gameState.history.length % 2 === 0 ? gameState.initialFirstPlayerIndex : (gameState.initialFirstPlayerIndex + 1) % 2;
@@ -319,12 +328,8 @@ function recalculateScores() {
     renderRoundHistory();
     renderRoundInfo();
 }
-
 function renderRoundHistory() {
-    if (gameState.history.length === 0) {
-        roundHistoryContainer.innerHTML = '<p class="text-slate-500 text-xs text-center p-2">Brak dodanych rund.</p>';
-        return;
-    }
+    if (gameState.history.length === 0) { roundHistoryContainer.innerHTML = '<p class="text-slate-500 text-xs text-center p-2">Brak dodanych rund.</p>'; return; }
     let headerHtml = '<tr><th class="w-1/6">Runda</th>';
     gameState.players.forEach(p => headerHtml += `<th class="whitespace-nowrap" title="${p.name}">${p.name.length > 5 ? p.name.substring(0, 5) + '.' : p.name}</th>`);
     headerHtml += '<th class="w-1/12">Akcje</th></tr>';
@@ -347,6 +352,8 @@ function deleteRound(i) {
     gameState.history.splice(i, 1);
     recalculateScores();
     checkWinner();
+    // NOWA ZMIANA: Zapisz stan po usunięciu rundy
+    saveGameStateToLocalStorage();
 }
 
 function handleInputKeydown(e) {
@@ -365,46 +372,34 @@ function handleInputKeydown(e) {
 function renderGameScreen() {
     scoreboard.innerHTML = '';
     scoreInputs.innerHTML = '';
-
     gameState.players.forEach((player, i) => {
         const scoreCard = document.createElement('div');
         scoreCard.className = 'card text-center';
-        scoreCard.innerHTML = `
-            <div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div>
-            <div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>
-        `;
+        scoreCard.innerHTML = `<div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>`;
         scoreboard.appendChild(scoreCard);
-
         const inputContainer = document.createElement('div');
         const label = document.createElement('label');
         label.setAttribute('for', `score-input-${i}`);
         label.className = 'block mb-1 text-xs font-medium text-slate-400';
         label.textContent = player.name;
-        
         const inputElement = document.createElement('input');
         inputElement.type = 'number';
         inputElement.id = `score-input-${i}`;
         inputElement.className = 'input-field text-center text-sm';
         inputElement.placeholder = '0';
         inputElement.dataset.playerIndex = i;
-
         inputElement.addEventListener('keydown', handleInputKeydown);
-        inputElement.addEventListener('input', (e) => {
-            e.target.classList.toggle('input-filled', e.target.value.trim() !== '');
-        });
-        
+        inputElement.addEventListener('input', (e) => { e.target.classList.toggle('input-filled', e.target.value.trim() !== ''); });
         inputContainer.appendChild(label);
         inputContainer.appendChild(inputElement);
         scoreInputs.appendChild(inputContainer);
     });
-
     updateScoreValues();
     updateFirstPlayerMarker();
     renderRoundHistory();
     renderRoundInfo();
     document.getElementById('score-input-0')?.focus();
 }
-
 
 function updateScoreValues() {
     if (!gameState.isActive && !gameWinnerData) return;
@@ -443,20 +438,22 @@ function startGame() {
             players.push({ name: name, score: 0 });
         }
     }
-    if (!hasValidNames) {
-        showCustomAlert('Wszystkie pola z imionami muszą być wypełnione.');
-        return;
-    }
+    if (!hasValidNames) { showCustomAlert('Wszystkie pola z imionami muszą być wypełnione.'); return; }
+    
+    // NOWA ZMIANA: Przed rozpoczęciem nowej gry, czyścimy stary stan
+    clearGameState(true);
+    
     gameState = { players, history: [], isActive: true, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
     renderGameScreen();
     setupScreen.classList.add('hidden');
     statsScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
+    // NOWA ZMIANA: Zapisujemy stan nowo rozpoczętej gry
+    saveGameStateToLocalStorage();
 }
 
 function checkWinner() {
     if (!gameState.isActive) return;
-
     const winners = gameState.players.filter(p => p.score >= 1000);
     if (winners.length > 0) {
         const winner = winners.reduce((prev, curr) => (prev.score > curr.score) ? prev : curr);
@@ -466,24 +463,18 @@ function checkWinner() {
 
 function handleCorrectLastRound() {
     if (gameState.history.length === 0) return;
-
     winnerModal.classList.add('hidden');
     winnerModal.classList.remove('flex');
-
     gameState.isActive = true;
     gameWinnerData = null;
-
     gameState.history.shift();
     recalculateScores();
-
     const inputs = scoreInputs.querySelectorAll('input');
-    inputs.forEach(input => {
-        input.value = '';
-        input.classList.remove('input-filled');
-    });
+    inputs.forEach(input => { input.value = ''; input.classList.remove('input-filled'); });
     inputs[0]?.focus();
-
     showTemporaryMessage('Ostatnia runda została cofnięta. Możesz teraz poprawić wynik.', false);
+    // NOWA ZMIANA: Zapisz stan po cofnięciu rundy
+    saveGameStateToLocalStorage();
 }
 
 
@@ -500,15 +491,14 @@ function updateFirstPlayerMarker() {
 }
 
 function rotateFirstPlayer() {
-    if (gameState.history.length > 0) {
-        showTemporaryMessage('Zmiana możliwa tylko w Rundzie 1.', true);
-        return;
-    }
+    if (gameState.history.length > 0) { showTemporaryMessage('Zmiana możliwa tylko w Rundzie 1.', true); return; }
     if (!gameState.isActive || gameState.players.length < 2) return;
     gameState.firstPlayerIndex = (gameState.firstPlayerIndex + 1) % gameState.players.length;
     gameState.initialFirstPlayerIndex = gameState.firstPlayerIndex;
     updateFirstPlayerMarker();
     renderRoundInfo();
+    // NOWA ZMIANA: Zapisz stan po rotacji gracza
+    saveGameStateToLocalStorage();
 }
 
 function handleBackFromStats() {
@@ -521,19 +511,16 @@ function handleBackToMenu() {
     if (gameState.isActive) {
         const message = gameState.loadedFromFirebase 
             ? 'Porzucić obecną grę? Będziesz mógł wrócić do niej później (zapis pozostanie w chmurze).' 
-            : 'Porzucić obecną grę? Postęp lokalny nie zostanie zapisany.';
+            : 'Porzucić obecną grę? Postęp lokalny zostanie trwale usunięty.';
         showCustomConfirm(message, resetGame);
     } else {
         resetGame();
     }
 }
 
+// ... reszta funkcji (modalne, statystyki) bez zmian, pominięte dla zwięzłości
 let currentYesHandler, currentNoHandler;
-
-function showCustomAlert(msg) {
-    showCustomConfirm(msg, () => {}, false);
-}
-
+function showCustomAlert(msg) { showCustomConfirm(msg, () => {}, false); }
 function showCustomConfirm(msg, onConfirm, showNo = true) {
     confirmMessage.textContent = msg;
     confirmModal.classList.add('flex');
@@ -557,49 +544,33 @@ function showCustomConfirm(msg, onConfirm, showNo = true) {
         confirmNoBtn.removeEventListener('click', currentNoHandler);
         confirmYesBtn.textContent = 'Tak';
     };
-    const handleYes = () => {
-        cleanUp();
-        if (showNo) onConfirm();
-    };
+    const handleYes = () => { cleanUp(); if (showNo) onConfirm(); };
     const handleNo = cleanUp;
     currentYesHandler = handleYes;
     currentNoHandler = handleNo;
     confirmYesBtn.addEventListener('click', currentYesHandler);
     confirmNoBtn.addEventListener('click', currentNoHandler);
 }
-
 async function saveStats(winner) {
     if (!db) return;
     try {
         const winnerRef = db.collection(FIREBASE_COLLECTION_WINS).doc(winner.name);
         await winnerRef.set({ name: winner.name, wins: firebase.firestore.FieldValue.increment(1) }, { merge: true });
         showTemporaryMessage(`Zwycięstwo ${winner.name} zapisane w rankingu!`, false);
-    } catch (e) {
-        console.error("Błąd zapisu statystyk do Firebase:", e);
-        showTemporaryMessage("Błąd zapisu statystyk do Firebase!", true);
-    }
+    } catch (e) { console.error("Błąd zapisu statystyk do Firebase:", e); showTemporaryMessage("Błąd zapisu statystyk do Firebase!", true); }
 }
-
 async function getStatsFromFirebase() {
-    if (!db) {
-        return { playerWins: {} };
-    }
+    if (!db) { return { playerWins: {} }; }
     const stats = { playerWins: {} };
     try {
         const winsSnapshot = await db.collection(FIREBASE_COLLECTION_WINS).get();
         winsSnapshot.forEach(doc => {
             const data = doc.data();
-            if (data.wins) {
-                stats.playerWins[doc.id] = parseInt(data.wins, 10) || 0;
-            }
+            if (data.wins) { stats.playerWins[doc.id] = parseInt(data.wins, 10) || 0; }
         });
-    } catch (e) {
-        console.error("Błąd pobierania statystyk z Firebase:", e);
-        showTemporaryMessage("Błąd pobierania statystyk z Firebase!", true);
-    }
+    } catch (e) { console.error("Błąd pobierania statystyk z Firebase:", e); showTemporaryMessage("Błąd pobierania statystyk z Firebase!", true); }
     return stats;
 }
-
 async function showStats() {
     const stats = await getStatsFromFirebase();
     const totalGames = Object.values(stats.playerWins).reduce((sum, current) => sum + current, 0);
@@ -609,7 +580,6 @@ async function showStats() {
         summaryHtml += `<h4 class="mt-3 mb-2 font-semibold text-sm">Ranking zwycięstw:</h4>`;
         summaryHtml += `<div class="space-y-1 text-sm">`;
         sortedWins.forEach(([name, wins]) => {
-            // ZMIANA: Zmiana toFixed(0) na toFixed(2) dla procentów
             const winPercentage = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(2) : '0.00';
             summaryHtml += `<div class="flex justify-center gap-2"><span>${name}:</span> <span class="font-semibold"><span class="font-bold text-teal-400">${wins}</span> wygrane (${winPercentage}%)</span></div>`;
         });
@@ -623,13 +593,10 @@ async function showStats() {
     statsScreen.classList.remove('hidden');
 }
 
-// --- Event Listeners ---
 
+// --- Event Listeners ---
 showLoadGameBtn.addEventListener('click', handleShowLoadScreen);
-backFromLoadBtn.addEventListener('click', () => {
-    loadGameScreen.classList.add('hidden');
-    setupScreen.classList.remove('hidden');
-});
+backFromLoadBtn.addEventListener('click', () => { loadGameScreen.classList.add('hidden'); setupScreen.classList.remove('hidden'); });
 loadGameBtn.addEventListener('click', loadGameStateFromFirebase);
 deleteGameBtn.addEventListener('click', handleDeleteSavedGame);
 saveGameBtn.addEventListener('click', saveCurrentGameState);
@@ -645,5 +612,14 @@ saveAndEndBtn.addEventListener('click', saveAndEndGame);
 modalBackToMenuBtn.addEventListener('click', resetGame);
 correctLastRoundBtn.addEventListener('click', handleCorrectLastRound);
 
-// Inicjalizacja
-generatePlayerNameInputs();
+// --- Inicjalizacja ---
+// NOWA ZMIANA: Zmodyfikowana logika startowa
+function initializeApp() {
+    // Spróbuj wczytać grę z localStorage. Jeśli się nie uda, pokaż normalnie ekran startowy.
+    if (!tryToLoadGameFromLocalStorage()) {
+        generatePlayerNameInputs();
+    }
+}
+
+// Odpalamy inicjalizację po załadowaniu DOM
+initializeApp();
