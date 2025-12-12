@@ -156,7 +156,7 @@ function showGameChart() {
                     // NOWA ZMIANA: Logika kolorowania linii 0 i 1000
                     grid: {
                         color: function(context) {
-                            if (context.tick.value === 1000) return '#14b8a6'; // Kolor wygranej
+                            if (context.tick.value === 1000) return '#8badaa'; // Kolor wygranej
                             if (context.tick.value === 0) return '#f87171'; // Kolor zera
                             return '#334155'; // Standardowy kolor
                         },
