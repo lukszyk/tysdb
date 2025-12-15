@@ -60,16 +60,23 @@ const saveGameBtn = document.getElementById('save-game-btn');
 const saveAndEndBtn = document.getElementById('save-and-end-btn');
 const correctLastRoundBtn = document.getElementById('correct-last-round-btn');
 
-// Wykres - referencje
+// Wykres w grze
 const chartContainer = document.getElementById('chart-container');
 const gameChartCanvas = document.getElementById('game-chart-canvas');
+
+// NOWE REFERENCJE DLA WYKRESU KOŃCOWEGO
+const showFinalChartBtn = document.getElementById('show-final-chart-btn');
+const finalChartContainer = document.getElementById('final-chart-container');
+const finalChartCanvas = document.getElementById('final-chart-canvas');
+
 
 // Stan Aplikacji
 let gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
 let gameWinnerData = null;
 const defaultPlayerNames = ['Kulik', 'Miś', 'Gracz 3', 'Gracz 4'];
 const LEADER_CLASS = 'is-leader';
-let gameChart = null;
+let gameChart = null; // Instancja wykresu w grze
+let finalChart = null; // Instancja wykresu końcowego
 
 // Funkcje zapisu/odczytu (localStorage, firebase)
 function saveGameStateToLocalStorage() { if (gameState.isActive && gameState.players.length > 0) { localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState)); } }
@@ -117,6 +124,12 @@ function showWinnerModal(winner) {
         [...gameState.players].sort((a,b) => b.score - a.score).map(p => 
             `<div class="flex justify-between"><span>${p.name}:</span><span class="font-semibold">${p.score} pkt</span></div>`
         ).join('');
+    
+    // Zresetuj widok wykresu końcowego (ukryj go i pokaż przycisk)
+    finalChartContainer.classList.add('hidden');
+    showFinalChartBtn.classList.remove('hidden');
+    if (finalChart) { finalChart.destroy(); finalChart = null; }
+
     winnerModal.classList.remove('hidden'); winnerModal.classList.add('flex');
 }
 
@@ -131,8 +144,9 @@ function clearGameState(fullClear = true) {
     chartContainer.classList.add('hidden');
 }
 
-// --- Funkcja do aktualizacji wykresu ---
+// --- Funkcje do rysowania wykresów ---
 
+// 1. Wykres w grze (automatyczny)
 function updateGameChart() {
     if (gameState.history.length === 0) {
         chartContainer.classList.add('hidden');
@@ -142,6 +156,25 @@ function updateGameChart() {
     
     chartContainer.classList.remove('hidden');
     if (gameChart) { gameChart.destroy(); }
+    
+    // Używamy funkcji pomocniczej do generowania konfiguracji, żeby nie powtarzać kodu
+    const config = createChartConfig(gameChartCanvas);
+    gameChart = new Chart(config.ctx, config.options);
+}
+
+// 2. Wykres końcowy (na żądanie)
+function renderFinalChart() {
+    finalChartContainer.classList.remove('hidden'); // Pokaż kontener
+    showFinalChartBtn.classList.add('hidden'); // Ukryj przycisk
+    
+    if (finalChart) { finalChart.destroy(); }
+    
+    const config = createChartConfig(finalChartCanvas);
+    finalChart = new Chart(config.ctx, config.options);
+}
+
+// Funkcja pomocnicza generująca konfigurację dla obu wykresów
+function createChartConfig(canvasElement) {
     const labels = ['Start'];
     for (let i = 1; i <= gameState.history.length; i++) { labels.push(`Runda ${i}`); }
     const chartColors = ['#14b8a6', '#facc15', '#f87171', '#60a5fa'];
@@ -150,33 +183,37 @@ function updateGameChart() {
         [...gameState.history].reverse().forEach(round => { cumulativeScore += round[player.name] || 0; scoresOverTime.push(cumulativeScore); });
         return { label: player.name, data: scoresOverTime, borderColor: chartColors[playerIndex % chartColors.length], backgroundColor: chartColors[playerIndex % chartColors.length] + '33', fill: false, tension: 0.1 };
     });
-    const ctx = gameChartCanvas.getContext('2d');
-    gameChart = new Chart(ctx, {
-        type: 'line',
-        data: { labels: labels, datasets: datasets },
+    
+    return {
+        ctx: canvasElement.getContext('2d'),
         options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#f1f5f9' } } },
-            scales: {
-                y: {
-                    ticks: { color: '#94a3b8' },
-                    grid: {
-                        color: (context) => {
-                            if (context.tick.value === 1000) return '#14b8a6';
-                            if (context.tick.value === 0) return '#f87171';
-                            return '#334155';
-                        },
-                        lineWidth: (context) => {
-                            if (context.tick.value === 1000 || context.tick.value === 0) return 2;
-                            return 1;
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#f1f5f9' } } },
+                scales: {
+                    y: {
+                        ticks: { color: '#94a3b8' },
+                        grid: {
+                            color: (context) => {
+                                if (context.tick.value === 1000) return '#14b8a6';
+                                if (context.tick.value === 0) return '#f87171';
+                                return '#334155';
+                            },
+                            lineWidth: (context) => {
+                                if (context.tick.value === 1000 || context.tick.value === 0) return 2;
+                                return 1;
+                            }
                         }
-                    }
-                },
-                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    },
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                }
             }
         }
-    });
+    };
 }
+
 
 // Pozostałe funkcje pomocnicze
 let messageTimeout; function showTemporaryMessage(message, isError = false) { statusMessageContainer.innerHTML = `<div class="p-2 rounded-lg ${isError ? 'bg-red-800 text-white' : 'bg-yellow-600 text-slate-900'} font-semibold">${message}</div>`; clearTimeout(messageTimeout); messageTimeout = setTimeout(() => { statusMessageContainer.innerHTML = ''; }, 5000); }
@@ -219,6 +256,7 @@ backToMenuBtn.addEventListener('click', handleBackToMenu);
 saveAndEndBtn.addEventListener('click', saveAndEndGame);
 modalBackToMenuBtn.addEventListener('click', resetGame);
 correctLastRoundBtn.addEventListener('click', handleCorrectLastRound);
+showFinalChartBtn.addEventListener('click', renderFinalChart);
 
 // --- Inicjalizacja ---
 function initializeApp() {
