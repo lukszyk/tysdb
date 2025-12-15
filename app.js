@@ -20,7 +20,7 @@ try {
     var db = null;
 }
 
-// Nowe referencje i stałe
+// Stałe
 const FIREBASE_COLLECTION_WINS = 'tysiac_win_stats';
 const savedGameStateRef = db.collection('saved_game_state').doc('current');
 const GAME_STATE_KEY = 'tysiacGameState_v2'; 
@@ -59,13 +59,10 @@ const backFromLoadBtn = document.getElementById('back-from-load-btn');
 const saveGameBtn = document.getElementById('save-game-btn');
 const saveAndEndBtn = document.getElementById('save-and-end-btn');
 const correctLastRoundBtn = document.getElementById('correct-last-round-btn');
-const showChartBtn = document.getElementById('show-chart-btn');
-const chartModal = document.getElementById('chart-modal');
-const closeChartBtn = document.getElementById('close-chart-btn');
-const gameChartCanvas = document.getElementById('game-chart-canvas');
-// NOWA ZMIANA: Referencja do przycisku na modalu zwycięzcy
-const showFinalChartBtn = document.getElementById('show-final-chart-btn');
 
+// Wykres - referencje
+const chartContainer = document.getElementById('chart-container');
+const gameChartCanvas = document.getElementById('game-chart-canvas');
 
 // Stan Aplikacji
 let gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
@@ -74,12 +71,12 @@ const defaultPlayerNames = ['Kulik', 'Miś', 'Gracz 3', 'Gracz 4'];
 const LEADER_CLASS = 'is-leader';
 let gameChart = null;
 
-// Funkcje zapisu/odczytu (localStorage, firebase) - bez zmian
+// Funkcje zapisu/odczytu (localStorage, firebase)
 function saveGameStateToLocalStorage() { if (gameState.isActive && gameState.players.length > 0) { localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState)); } }
-function tryToLoadGameFromLocalStorage() { const savedStateJSON = localStorage.getItem(GAME_STATE_KEY); if (savedStateJSON) { try { const savedState = JSON.parse(savedStateJSON); if (savedState.isActive && savedState.players.length > 0) { gameState = savedState; renderGameScreen(); setupScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); showTemporaryMessage('Wczytano ostatnią niezakończoną grę.', false); return true; } } catch (error) { console.error('Błąd parsowania stanu gry z localStorage:', error); localStorage.removeItem(GAME_STATE_KEY); } } return false; }
+function tryToLoadGameFromLocalStorage() { const savedStateJSON = localStorage.getItem(GAME_STATE_KEY); if (savedStateJSON) { try { const savedState = JSON.parse(savedStateJSON); if (savedState.isActive && savedState.players.length > 0) { gameState = savedState; renderGameScreen(); setupScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); showTemporaryMessage('Wczytano ostatnią niezakończoną grę.', false); updateGameChart(); return true; } } catch (error) { console.error('Błąd parsowania stanu gry z localStorage:', error); localStorage.removeItem(GAME_STATE_KEY); } } return false; }
 async function handleShowLoadScreen() { setupScreen.classList.add('hidden'); loadGameScreen.classList.remove('hidden'); loadGameMessage.textContent = 'Sprawdzanie...'; loadGameBtn.classList.add('hidden'); deleteGameBtn.classList.add('hidden'); if (!db) { loadGameMessage.textContent = 'Błąd: Brak połączenia z bazą danych.'; return; } try { const doc = await savedGameStateRef.get(); if (doc.exists) { loadGameMessage.textContent = 'Znaleziono zapisaną grę. Chcesz ją kontynuować?'; loadGameBtn.classList.remove('hidden'); deleteGameBtn.classList.remove('hidden'); } else { loadGameMessage.textContent = 'Brak zapisanej gry w chmurze.'; } } catch (error) { console.error("Błąd sprawdzania zapisu gry:", error); loadGameMessage.textContent = 'Błąd połączenia z bazą danych: ' + error.message; } }
 async function saveCurrentGameState() { if (!gameState.isActive || gameState.history.length === 0) return; try { await savedGameStateRef.set(gameState); gameState.loadedFromFirebase = true; showTemporaryMessage('Stan gry został zapisany w chmurze!', false); } catch (error) { console.error("Błąd zapisu stanu gry:", error); showTemporaryMessage('Błąd podczas zapisu stanu gry!', true); } }
-async function loadGameStateFromFirebase() { try { const doc = await savedGameStateRef.get(); if (doc.exists) { gameState = doc.data(); gameState.isActive = true; gameState.loadedFromFirebase = true; renderGameScreen(); loadGameScreen.classList.add('hidden'); setupScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); saveGameStateToLocalStorage(); } else { showCustomAlert('Nie znaleziono zapisu gry.'); } } catch (error) { console.error("Błąd wczytywania stanu gry:", error); showCustomAlert('Wystąpił błąd podczas wczytywania gry.'); } }
+async function loadGameStateFromFirebase() { try { const doc = await savedGameStateRef.get(); if (doc.exists) { gameState = doc.data(); gameState.isActive = true; gameState.loadedFromFirebase = true; renderGameScreen(); loadGameScreen.classList.add('hidden'); setupScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); saveGameStateToLocalStorage(); updateGameChart(); } else { showCustomAlert('Nie znaleziono zapisu gry.'); } } catch (error) { console.error("Błąd wczytywania stanu gry:", error); showCustomAlert('Wystąpił błąd podczas wczytywania gry.'); } }
 async function deleteSavedGameState() { if (!db) return; try { await savedGameStateRef.delete(); console.log('Zapisany stan gry został usunięty.'); } catch (error) { console.error('Błąd usuwania zapisanego stanu gry:', error); } }
 async function handleDeleteSavedGame() { showCustomConfirm('Czy na pewno chcesz usunąć zapisaną grę z chmury? Tej operacji nie można cofnąć.', async () => { try { await deleteSavedGameState(); showTemporaryMessage('Zapisana gra została usunięta z chmury.', false); loadGameMessage.textContent = 'Brak zapisanej gry w chmurze.'; loadGameBtn.classList.add('hidden'); deleteGameBtn.classList.add('hidden'); } catch (error) { console.error("Błąd usuwania zapisu gry:", error); showTemporaryMessage('Błąd podczas usuwania zapisu gry!', true); } }); }
 
@@ -104,10 +101,8 @@ function addRoundScore() {
     gameState.players.forEach(p => p.score += roundScores[p.name]);
     gameState.history.unshift(roundScores);
     if (gameState.players.length === 2) { gameState.firstPlayerIndex = gameState.history.length % 2 !== 0 ? (gameState.initialFirstPlayerIndex + 1) % 2 : gameState.initialFirstPlayerIndex; } else { gameState.firstPlayerIndex = (gameState.firstPlayerIndex + 1) % gameState.players.length; }
-    updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); checkWinner(); saveGameStateToLocalStorage();
+    updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); updateGameChart(); checkWinner(); saveGameStateToLocalStorage();
     if(gameState.isActive) {
-        showChartBtn.disabled = false;
-        showChartBtn.classList.remove('btn-disabled');
         gameState.players.forEach((_, i) => { const input = document.getElementById(`score-input-${i}`); input.value = ''; input.classList.remove('input-filled'); });
         if (roundingOccurred) showTemporaryMessage('Wynik dodatni został zaokrąglony do najbliższej 10-tki.', false);
         renderRoundInfo(); document.getElementById('score-input-0')?.focus();
@@ -127,12 +122,25 @@ function showWinnerModal(winner) {
 
 async function saveAndEndGame() { if (!gameWinnerData) return; saveAndEndBtn.disabled = true; saveAndEndBtn.textContent = 'Zapisywanie...'; await saveStats(gameWinnerData); if (gameState.loadedFromFirebase) { await deleteSavedGameState(); } resetGame(); saveAndEndBtn.disabled = false; saveAndEndBtn.textContent = 'Zapisz wynik i zakończ'; }
 function resetGame() { clearGameState(true); gameScreen.classList.add('hidden'); statsScreen.classList.add('hidden'); winnerModal.classList.add('hidden'); winnerModal.classList.remove('flex'); loadGameScreen.classList.add('hidden'); setupScreen.classList.remove('hidden'); generatePlayerNameInputs(); }
-function clearGameState(fullClear = true) { gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false }; gameWinnerData = null; if (fullClear) { localStorage.removeItem(GAME_STATE_KEY); } saveGameBtn.disabled = true; saveGameBtn.classList.add('btn-disabled'); showChartBtn.disabled = true; showChartBtn.classList.add('btn-disabled'); }
+function clearGameState(fullClear = true) {
+    gameState = { players: [], history: [], isActive: false, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false };
+    gameWinnerData = null;
+    if (fullClear) { localStorage.removeItem(GAME_STATE_KEY); }
+    saveGameBtn.disabled = true; saveGameBtn.classList.add('btn-disabled');
+    if (gameChart) { gameChart.destroy(); gameChart = null; }
+    chartContainer.classList.add('hidden');
+}
 
-// --- Funkcja do rysowania wykresu ---
+// --- Funkcja do aktualizacji wykresu ---
 
-function showGameChart() {
-    if (gameState.history.length === 0) { showTemporaryMessage('Wykres będzie dostępny po dodaniu pierwszej rundy.', true); return; }
+function updateGameChart() {
+    if (gameState.history.length === 0) {
+        chartContainer.classList.add('hidden');
+        if (gameChart) { gameChart.destroy(); gameChart = null; }
+        return;
+    }
+    
+    chartContainer.classList.remove('hidden');
     if (gameChart) { gameChart.destroy(); }
     const labels = ['Start'];
     for (let i = 1; i <= gameState.history.length; i++) { labels.push(`Runda ${i}`); }
@@ -147,50 +155,43 @@ function showGameChart() {
         type: 'line',
         data: { labels: labels, datasets: datasets },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { labels: { color: '#f1f5f9' } } },
             scales: {
                 y: {
                     ticks: { color: '#94a3b8' },
-                    // NOWA ZMIANA: Logika kolorowania linii 0 i 1000
                     grid: {
-                        color: function(context) {
-                            if (context.tick.value === 1000) return '#8badaa'; // Kolor wygranej
-                            if (context.tick.value === 0) return '#f87171'; // Kolor zera
-                            return '#334155'; // Standardowy kolor
+                        color: (context) => {
+                            if (context.tick.value === 1000) return '#14b8a6';
+                            if (context.tick.value === 0) return '#f87171';
+                            return '#334155';
                         },
-                        lineWidth: function(context) {
-                            if (context.tick.value === 1000 || context.tick.value === 0) return 2; // Grubsza linia
+                        lineWidth: (context) => {
+                            if (context.tick.value === 1000 || context.tick.value === 0) return 2;
                             return 1;
                         }
                     }
                 },
-                x: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: '#334155' }
-                }
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
             }
         }
     });
-    chartModal.classList.remove('hidden');
-    chartModal.classList.add('flex');
 }
 
-// Pozostałe funkcje pomocnicze - bez zmian
+// Pozostałe funkcje pomocnicze
 let messageTimeout; function showTemporaryMessage(message, isError = false) { statusMessageContainer.innerHTML = `<div class="p-2 rounded-lg ${isError ? 'bg-red-800 text-white' : 'bg-yellow-600 text-slate-900'} font-semibold">${message}</div>`; clearTimeout(messageTimeout); messageTimeout = setTimeout(() => { statusMessageContainer.innerHTML = ''; }, 5000); }
 function renderRoundInfo() { if (!gameState.isActive) return; const currentRound = gameState.history.length + 1; const firstPlayerName = gameState.players[gameState.firstPlayerIndex].name; roundInfoDisplay.innerHTML = `<span class="text-slate-300">Runda: </span><span class="text-teal-400 font-bold">${currentRound}</span><span class="text-slate-300 ml-4 hidden sm:inline-block">|</span><span class="text-slate-300 ml-4">Na musiku: </span><span class="text-amber-400 font-bold">${firstPlayerName} </span>`; const isRound1 = gameState.history.length === 0; rotateFirstPlayerBtn.classList.toggle('btn-disabled', !isRound1); rotateFirstPlayerBtn.disabled = !isRound1; rotateFirstPlayerBtn.title = isRound1 ? "Dostępne tylko w Rundzie 1." : "Blokada: Dostępne tylko w Rundzie 1."; }
 function recalculateScores() { gameState.players.forEach(p => p.score = 0); [...gameState.history].reverse().forEach(round => { gameState.players.forEach(player => { player.score += round[player.name] || 0; }); }); if (gameState.players.length === 2) { gameState.firstPlayerIndex = gameState.history.length % 2 === 0 ? gameState.initialFirstPlayerIndex : (gameState.initialFirstPlayerIndex + 1) % 2; } else { gameState.firstPlayerIndex = (gameState.initialFirstPlayerIndex + gameState.history.length) % gameState.players.length; } updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); }
 function renderRoundHistory() { if (gameState.history.length === 0) { roundHistoryContainer.innerHTML = '<p class="text-slate-500 text-xs text-center p-2">Brak dodanych rund.</p>'; return; } let headerHtml = '<tr><th class="w-1/6">Runda</th>'; gameState.players.forEach(p => headerHtml += `<th class="whitespace-nowrap" title="${p.name}">${p.name.length > 5 ? p.name.substring(0, 5) + '.' : p.name}</th>`); headerHtml += '<th class="w-1/12">Akcje</th></tr>'; let bodyHtml = ''; gameState.history.forEach((round, index) => { const roundNumber = gameState.history.length - index; let rowHtml = `<tr><td>${roundNumber}</td>`; gameState.players.forEach(p => rowHtml += `<td class="${(round[p.name] || 0) < 0 ? 'score-negative' : 'history-score'}">${round[p.name] || 0}</td>`); rowHtml += `<td><button onclick="confirmDeleteRound(${index})" class="text-red-500 hover:text-red-400 p-0.5 rounded"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mx-auto" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></td></tr>`; bodyHtml += rowHtml; }); roundHistoryContainer.innerHTML = `<table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table>`; }
 window.confirmDeleteRound = function(i) { showCustomConfirm('Czy na pewno chcesz usunąć tę rundę?', () => deleteRound(i)); }
-function deleteRound(i) { gameState.history.splice(i, 1); recalculateScores(); checkWinner(); saveGameStateToLocalStorage(); }
+function deleteRound(i) { gameState.history.splice(i, 1); recalculateScores(); updateGameChart(); checkWinner(); saveGameStateToLocalStorage(); }
 function handleInputKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); const currentIndex = parseInt(e.target.dataset.playerIndex, 10); const nextIndex = currentIndex + 1; if (nextIndex < gameState.players.length) { document.getElementById(`score-input-${nextIndex}`)?.focus(); } else { addRoundBtn.click(); } } }
-function renderGameScreen() { scoreboard.innerHTML = ''; scoreInputs.innerHTML = ''; gameState.players.forEach((player, i) => { const scoreCard = document.createElement('div'); scoreCard.className = 'card text-center'; scoreCard.innerHTML = `<div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>`; scoreboard.appendChild(scoreCard); const inputContainer = document.createElement('div'); const label = document.createElement('label'); label.setAttribute('for', `score-input-${i}`); label.className = 'block mb-1 text-xs font-medium text-slate-400'; label.textContent = player.name; const inputElement = document.createElement('input'); inputElement.type = 'number'; inputElement.id = `score-input-${i}`; inputElement.className = 'input-field text-center text-sm'; inputElement.placeholder = '0'; inputElement.dataset.playerIndex = i; inputElement.addEventListener('keydown', handleInputKeydown); inputElement.addEventListener('input', (e) => { e.target.classList.toggle('input-filled', e.target.value.trim() !== ''); }); inputContainer.appendChild(label); inputContainer.appendChild(inputElement); scoreInputs.appendChild(inputContainer); }); updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); document.getElementById('score-input-0')?.focus(); if(gameState.history.length > 0) { showChartBtn.disabled = false; showChartBtn.classList.remove('btn-disabled');} }
+function renderGameScreen() { scoreboard.innerHTML = ''; scoreInputs.innerHTML = ''; gameState.players.forEach((player, i) => { const scoreCard = document.createElement('div'); scoreCard.className = 'card text-center'; scoreCard.innerHTML = `<div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>`; scoreboard.appendChild(scoreCard); const inputContainer = document.createElement('div'); const label = document.createElement('label'); label.setAttribute('for', `score-input-${i}`); label.className = 'block mb-1 text-xs font-medium text-slate-400'; label.textContent = player.name; const inputElement = document.createElement('input'); inputElement.type = 'number'; inputElement.id = `score-input-${i}`; inputElement.className = 'input-field text-center text-sm'; inputElement.placeholder = '0'; inputElement.dataset.playerIndex = i; inputElement.addEventListener('keydown', handleInputKeydown); inputElement.addEventListener('input', (e) => { e.target.classList.toggle('input-filled', e.target.value.trim() !== ''); }); inputContainer.appendChild(label); inputContainer.appendChild(inputElement); scoreInputs.appendChild(inputContainer); }); updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); updateGameChart(); document.getElementById('score-input-0')?.focus(); }
 function updateScoreValues() { if (!gameState.isActive && !gameWinnerData) return; const maxScore = Math.max(...gameState.players.map(p => p.score)); gameState.players.forEach((p, i) => { const scoreEl = document.getElementById(`player-score-${i}`); const cardEl = scoreboard.children[i]; if (scoreEl) { scoreEl.textContent = p.score; scoreEl.classList.toggle('score-danger', p.score >= 800); scoreEl.classList.toggle('text-teal-400', p.score < 800); } if (cardEl) cardEl.classList.toggle(LEADER_CLASS, p.score === maxScore && maxScore > 0); }); }
 function generatePlayerNameInputs() { const count = parseInt(playerCountSelect.value, 10); playerNamesContainer.innerHTML = ''; for (let i = 1; i <= count; i++) { playerNamesContainer.innerHTML += `<div><label for="player${i}" class="block mb-1 text-sm font-medium text-slate-400">Imię gracza ${i}:</label><input type="text" id="player${i}" class="input-field" placeholder="Gracz ${i}" value="${defaultPlayerNames[i - 1] || `Gracz ${i}`}"></div>`; } }
 function startGame() { const players = []; let hasValidNames = true; for (let i = 1; i <= parseInt(playerCountSelect.value, 10); i++) { const input = document.getElementById(`player${i}`); const name = input.value.trim(); if (name === '') { input.style.borderColor = 'red'; hasValidNames = false; } else { input.style.borderColor = ''; players.push({ name: name, score: 0 }); } } if (!hasValidNames) { showCustomAlert('Wszystkie pola z imionami muszą być wypełnione.'); return; } clearGameState(true); gameState = { players, history: [], isActive: true, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false }; renderGameScreen(); setupScreen.classList.add('hidden'); statsScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); saveGameStateToLocalStorage(); }
 function checkWinner() { if (!gameState.isActive) return; const winners = gameState.players.filter(p => p.score >= 1000); if (winners.length > 0) { const winner = winners.reduce((prev, curr) => (prev.score > curr.score) ? prev : curr); showWinnerModal(winner); } }
-function handleCorrectLastRound() { if (gameState.history.length === 0) return; winnerModal.classList.add('hidden'); winnerModal.classList.remove('flex'); gameState.isActive = true; gameWinnerData = null; gameState.history.shift(); recalculateScores(); const inputs = scoreInputs.querySelectorAll('input'); inputs.forEach(input => { input.value = ''; input.classList.remove('input-filled'); }); inputs[0]?.focus(); showTemporaryMessage('Ostatnia runda została cofnięta. Możesz teraz poprawić wynik.', false); saveGameStateToLocalStorage(); }
+function handleCorrectLastRound() { if (gameState.history.length === 0) return; winnerModal.classList.add('hidden'); winnerModal.classList.remove('flex'); gameState.isActive = true; gameWinnerData = null; gameState.history.shift(); recalculateScores(); updateGameChart(); const inputs = scoreInputs.querySelectorAll('input'); inputs.forEach(input => { input.value = ''; input.classList.remove('input-filled'); }); inputs[0]?.focus(); showTemporaryMessage('Ostatnia runda została cofnięta. Możesz teraz poprawić wynik.', false); saveGameStateToLocalStorage(); }
 function updateFirstPlayerMarker() { gameState.players.forEach((p, i) => { const nameEl = document.getElementById(`player-name-${i}`); if (nameEl) { let markers = ''; if (i === gameState.firstPlayerIndex) markers += '<span class="text-amber-400 text-xs ml-1" title="Na musiku">musik</span>'; if (i === gameState.initialFirstPlayerIndex) markers += '<span class="text-red-400 text-xs ml-1 font-bold" title="Rozpoczynający RUNDĘ 1">START</span>'; nameEl.innerHTML = `${p.name} ${markers}`; } }); }
 function rotateFirstPlayer() { if (gameState.history.length > 0) { showTemporaryMessage('Zmiana możliwa tylko w Rundzie 1.', true); return; } if (!gameState.isActive || gameState.players.length < 2) return; gameState.firstPlayerIndex = (gameState.firstPlayerIndex + 1) % gameState.players.length; gameState.initialFirstPlayerIndex = gameState.firstPlayerIndex; updateFirstPlayerMarker(); renderRoundInfo(); saveGameStateToLocalStorage(); }
 function handleBackFromStats() { statsScreen.classList.add('hidden'); if(gameState.isActive) gameScreen.classList.remove('hidden'); else setupScreen.classList.remove('hidden'); }
@@ -218,15 +219,12 @@ backToMenuBtn.addEventListener('click', handleBackToMenu);
 saveAndEndBtn.addEventListener('click', saveAndEndGame);
 modalBackToMenuBtn.addEventListener('click', resetGame);
 correctLastRoundBtn.addEventListener('click', handleCorrectLastRound);
-showChartBtn.addEventListener('click', showGameChart);
-// NOWA ZMIANA: Listener dla nowego przycisku w modalu zwycięzcy
-showFinalChartBtn.addEventListener('click', showGameChart);
-closeChartBtn.addEventListener('click', () => { chartModal.classList.add('hidden'); chartModal.classList.remove('flex'); });
 
 // --- Inicjalizacja ---
 function initializeApp() {
     if (!tryToLoadGameFromLocalStorage()) {
         generatePlayerNameInputs();
+        updateGameChart(); // Ukryj wykres na starcie (wywoła .add('hidden') bo historia pusta)
     }
 }
 initializeApp();
