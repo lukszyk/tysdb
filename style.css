@@ -79,3 +79,23 @@ input[type=number] { -moz-appearance: textfield; }
 .input-field.input-filled {
     border-color: #14b8a6; /* Ten sam kolor co focus, dla spójności */
 }
+
+/* Gracz będący na musiku */
+.card.is-musik {
+    background-color: #51451f;
+    border: 2px solid #eab308;
+    box-shadow: 0 0 12px rgba(234, 179, 8, 0.35);
+}
+
+
+
+/* Klikalny pasek wykresu */
+.chart-toggle {
+    background-color: #334155;
+    color: #f1f5f9;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s ease-in-out;
+}
+.chart-toggle:hover { background-color: #475569; }
+.chart-toggle:focus { outline: 2px solid #14b8a6; outline-offset: -2px; }

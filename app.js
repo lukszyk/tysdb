@@ -63,6 +63,9 @@ const correctLastRoundBtn = document.getElementById('correct-last-round-btn');
 // Wykres w grze
 const chartContainer = document.getElementById('chart-container');
 const gameChartCanvas = document.getElementById('game-chart-canvas');
+const chartToggleBtn = document.getElementById('chart-toggle-btn');
+const chartContent = document.getElementById('chart-content');
+const chartToggleIcon = document.getElementById('chart-toggle-icon');
 
 // NOWE REFERENCJE DLA WYKRESU KOŃCOWEGO
 const showFinalChartBtn = document.getElementById('show-final-chart-btn');
@@ -76,7 +79,8 @@ let gameWinnerData = null;
 const defaultPlayerNames = ['Kulik', 'Miś', 'Gracz 3', 'Gracz 4'];
 const LEADER_CLASS = 'is-leader';
 let gameChart = null; // Instancja wykresu w grze
-let finalChart = null; // Instancja wykresu końcowego
+let finalChart = null;
+let gameChartVisible = false; // Instancja wykresu końcowego
 
 // Funkcje zapisu/odczytu (localStorage, firebase)
 function saveGameStateToLocalStorage() { if (gameState.isActive && gameState.players.length > 0) { localStorage.setItem(GAME_STATE_KEY, JSON.stringify(gameState)); } }
@@ -142,6 +146,10 @@ function clearGameState(fullClear = true) {
     saveGameBtn.disabled = true; saveGameBtn.classList.add('btn-disabled');
     if (gameChart) { gameChart.destroy(); gameChart = null; }
     chartContainer.classList.add('hidden');
+    chartContent?.classList.add('hidden');
+    gameChartVisible = false;
+    if (chartToggleBtn) chartToggleBtn.setAttribute('aria-expanded', 'false');
+    if (chartToggleIcon) chartToggleIcon.textContent = '▼';
 }
 
 // --- Funkcje do rysowania wykresów ---
@@ -150,16 +158,37 @@ function clearGameState(fullClear = true) {
 function updateGameChart() {
     if (gameState.history.length === 0) {
         chartContainer.classList.add('hidden');
+        chartContent?.classList.add('hidden');
+        gameChartVisible = false;
+        if (chartToggleBtn) chartToggleBtn.setAttribute('aria-expanded', 'false');
+        if (chartToggleIcon) chartToggleIcon.textContent = '▼';
         if (gameChart) { gameChart.destroy(); gameChart = null; }
         return;
     }
-    
+
     chartContainer.classList.remove('hidden');
     if (gameChart) { gameChart.destroy(); }
-    
-    // Używamy funkcji pomocniczej do generowania konfiguracji, żeby nie powtarzać kodu
     const config = createChartConfig(gameChartCanvas);
     gameChart = new Chart(config.ctx, config.options);
+
+    if (gameChartVisible) {
+        chartContent.classList.remove('hidden');
+        chartToggleBtn.setAttribute('aria-expanded', 'true');
+        chartToggleIcon.textContent = '▲';
+    } else {
+        chartContent.classList.add('hidden');
+        chartToggleBtn.setAttribute('aria-expanded', 'false');
+        chartToggleIcon.textContent = '▼';
+    }
+}
+
+function toggleGameChart() {
+    if (gameState.history.length === 0) return;
+    gameChartVisible = !gameChartVisible;
+    chartContent.classList.toggle('hidden', !gameChartVisible);
+    chartToggleBtn.setAttribute('aria-expanded', String(gameChartVisible));
+    chartToggleIcon.textContent = gameChartVisible ? '▲' : '▼';
+    if (gameChartVisible && gameChart) setTimeout(() => gameChart.resize(), 0);
 }
 
 // 2. Wykres końcowy (na żądanie)
@@ -223,13 +252,13 @@ function renderRoundHistory() { if (gameState.history.length === 0) { roundHisto
 window.confirmDeleteRound = function(i) { showCustomConfirm('Czy na pewno chcesz usunąć tę rundę?', () => deleteRound(i)); }
 function deleteRound(i) { gameState.history.splice(i, 1); recalculateScores(); updateGameChart(); checkWinner(); saveGameStateToLocalStorage(); }
 function handleInputKeydown(e) { if (e.key === 'Enter') { e.preventDefault(); const currentIndex = parseInt(e.target.dataset.playerIndex, 10); const nextIndex = currentIndex + 1; if (nextIndex < gameState.players.length) { document.getElementById(`score-input-${nextIndex}`)?.focus(); } else { addRoundBtn.click(); } } }
-function renderGameScreen() { scoreboard.innerHTML = ''; scoreInputs.innerHTML = ''; gameState.players.forEach((player, i) => { const scoreCard = document.createElement('div'); scoreCard.className = 'card text-center'; scoreCard.innerHTML = `<div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>`; scoreboard.appendChild(scoreCard); const inputContainer = document.createElement('div'); const label = document.createElement('label'); label.setAttribute('for', `score-input-${i}`); label.className = 'block mb-1 text-xs font-medium text-slate-400'; label.textContent = player.name; const inputElement = document.createElement('input'); inputElement.type = 'number'; inputElement.id = `score-input-${i}`; inputElement.className = 'input-field text-center text-sm'; inputElement.placeholder = '0'; inputElement.dataset.playerIndex = i; inputElement.addEventListener('keydown', handleInputKeydown); inputElement.addEventListener('input', (e) => { e.target.classList.toggle('input-filled', e.target.value.trim() !== ''); }); inputContainer.appendChild(label); inputContainer.appendChild(inputElement); scoreInputs.appendChild(inputContainer); }); updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); updateGameChart(); document.getElementById('score-input-0')?.focus(); }
+function renderGameScreen() { scoreboard.innerHTML = ''; scoreInputs.innerHTML = ''; gameState.players.forEach((player, i) => { const scoreCard = document.createElement('div'); scoreCard.className = 'card text-center'; scoreCard.innerHTML = `<div id="player-name-${i}" class="text-sm font-semibold flex items-center justify-center gap-1">${player.name}</div><div id="player-score-${i}" class="musik-score text-3xl font-bold mt-1 ${player.score >= 800 ? 'score-danger' : 'text-teal-400'}">${player.score}</div>`; scoreboard.appendChild(scoreCard); const inputContainer = document.createElement('div'); const label = document.createElement('label'); label.setAttribute('for', `score-input-${i}`); label.className = 'block mb-1 text-xs font-medium text-slate-400'; label.textContent = player.name; const inputElement = document.createElement('input'); inputElement.type = 'number'; inputElement.id = `score-input-${i}`; inputElement.className = 'input-field text-center text-sm'; inputElement.placeholder = '0'; inputElement.dataset.playerIndex = i; inputElement.addEventListener('keydown', handleInputKeydown); inputElement.addEventListener('input', (e) => { e.target.classList.toggle('input-filled', e.target.value.trim() !== ''); }); inputContainer.appendChild(label); inputContainer.appendChild(inputElement); scoreInputs.appendChild(inputContainer); }); updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); updateGameChart(); document.getElementById('score-input-0')?.focus(); }
 function updateScoreValues() { if (!gameState.isActive && !gameWinnerData) return; const maxScore = Math.max(...gameState.players.map(p => p.score)); gameState.players.forEach((p, i) => { const scoreEl = document.getElementById(`player-score-${i}`); const cardEl = scoreboard.children[i]; if (scoreEl) { scoreEl.textContent = p.score; scoreEl.classList.toggle('score-danger', p.score >= 800); scoreEl.classList.toggle('text-teal-400', p.score < 800); } if (cardEl) cardEl.classList.toggle(LEADER_CLASS, p.score === maxScore && maxScore > 0); }); }
 function generatePlayerNameInputs() { const count = parseInt(playerCountSelect.value, 10); playerNamesContainer.innerHTML = ''; for (let i = 1; i <= count; i++) { playerNamesContainer.innerHTML += `<div><label for="player${i}" class="block mb-1 text-sm font-medium text-slate-400">Imię gracza ${i}:</label><input type="text" id="player${i}" class="input-field" placeholder="Gracz ${i}" value="${defaultPlayerNames[i - 1] || `Gracz ${i}`}"></div>`; } }
 function startGame() { const players = []; let hasValidNames = true; for (let i = 1; i <= parseInt(playerCountSelect.value, 10); i++) { const input = document.getElementById(`player${i}`); const name = input.value.trim(); if (name === '') { input.style.borderColor = 'red'; hasValidNames = false; } else { input.style.borderColor = ''; players.push({ name: name, score: 0 }); } } if (!hasValidNames) { showCustomAlert('Wszystkie pola z imionami muszą być wypełnione.'); return; } clearGameState(true); gameState = { players, history: [], isActive: true, firstPlayerIndex: 0, initialFirstPlayerIndex: 0, loadedFromFirebase: false }; renderGameScreen(); setupScreen.classList.add('hidden'); statsScreen.classList.add('hidden'); gameScreen.classList.remove('hidden'); saveGameStateToLocalStorage(); }
 function checkWinner() { if (!gameState.isActive) return; const winners = gameState.players.filter(p => p.score >= 1000); if (winners.length > 0) { const winner = winners.reduce((prev, curr) => (prev.score > curr.score) ? prev : curr); showWinnerModal(winner); } }
 function handleCorrectLastRound() { if (gameState.history.length === 0) return; winnerModal.classList.add('hidden'); winnerModal.classList.remove('flex'); gameState.isActive = true; gameWinnerData = null; gameState.history.shift(); recalculateScores(); updateGameChart(); const inputs = scoreInputs.querySelectorAll('input'); inputs.forEach(input => { input.value = ''; input.classList.remove('input-filled'); }); inputs[0]?.focus(); showTemporaryMessage('Ostatnia runda została cofnięta. Możesz teraz poprawić wynik.', false); saveGameStateToLocalStorage(); }
-function updateFirstPlayerMarker() { gameState.players.forEach((p, i) => { const nameEl = document.getElementById(`player-name-${i}`); if (nameEl) { let markers = ''; if (i === gameState.firstPlayerIndex) markers += '<span class="text-amber-400 text-xs ml-1" title="Na musiku">musik</span>'; if (i === gameState.initialFirstPlayerIndex) markers += '<span class="text-red-400 text-xs ml-1 font-bold" title="Rozpoczynający RUNDĘ 1">START</span>'; nameEl.innerHTML = `${p.name} ${markers}`; } }); }
+function updateFirstPlayerMarker() { gameState.players.forEach((p, i) => { const nameEl = document.getElementById(`player-name-${i}`); const cardEl = scoreboard.children[i]; if (nameEl) { let markers = ''; if (i === gameState.firstPlayerIndex) markers += '<span class="text-amber-400 text-xs ml-1 font-bold" title="Na musiku">musik</span>'; if (i === gameState.initialFirstPlayerIndex) markers += '<span class="text-red-400 text-xs ml-1 font-bold" title="Rozpoczynający RUNDĘ 1">START</span>'; nameEl.innerHTML = `${p.name} ${markers}`; } if (cardEl) cardEl.classList.toggle('is-musik', i === gameState.firstPlayerIndex); }); }
 function rotateFirstPlayer() { if (gameState.history.length > 0) { showTemporaryMessage('Zmiana możliwa tylko w Rundzie 1.', true); return; } if (!gameState.isActive || gameState.players.length < 2) return; gameState.firstPlayerIndex = (gameState.firstPlayerIndex + 1) % gameState.players.length; gameState.initialFirstPlayerIndex = gameState.firstPlayerIndex; updateFirstPlayerMarker(); renderRoundInfo(); saveGameStateToLocalStorage(); }
 function handleBackFromStats() { statsScreen.classList.add('hidden'); if(gameState.isActive) gameScreen.classList.remove('hidden'); else setupScreen.classList.remove('hidden'); }
 function handleBackToMenu() { if (gameState.isActive) { const message = gameState.loadedFromFirebase ? 'Porzucić obecną grę? Będziesz mógł wrócić do niej później (zapis pozostanie w chmurze).' : 'Porzucić obecną grę? Postęp lokalny zostanie trwale usunięty.'; showCustomConfirm(message, resetGame); } else { resetGame(); } }
@@ -257,6 +286,7 @@ saveAndEndBtn.addEventListener('click', saveAndEndGame);
 modalBackToMenuBtn.addEventListener('click', resetGame);
 correctLastRoundBtn.addEventListener('click', handleCorrectLastRound);
 showFinalChartBtn.addEventListener('click', renderFinalChart);
+chartToggleBtn?.addEventListener('click', toggleGameChart);
 
 // --- Inicjalizacja ---
 function initializeApp() {

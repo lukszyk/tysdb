@@ -59,21 +59,29 @@
                     Ręcznie obróć gracza rozpoczynającego ♛
                 </button>
             </div>
-            <div id="scoreboard" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4"></div>
 
-            <!-- WYKRES NA ŻYWO -->
-            <div id="chart-container" class="hidden card mb-4">
-                <h3 class="text-sm font-semibold mb-2">Postęp w Grze</h3>
-                <div class="relative h-64 bg-slate-900/50 p-2 rounded-lg">
-                    <canvas id="game-chart-canvas"></canvas>
-                </div>
-            </div>
-            
-            <div class="card space-y-3 mb-4">
+<div class="card space-y-3 mb-4">
                 <h3 class="text-base font-semibold">Dodaj punkty za rundę:</h3>
                 <div id="score-inputs" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
                 <button id="add-round-btn" class="btn btn-primary w-full">Dodaj Wynik Rundy</button>
             </div>
+
+            <div id="scoreboard" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4"></div>
+
+            <!-- WYKRES NA ŻYWO -->
+            <div id="chart-container" class="hidden card mb-4 p-0 overflow-hidden">
+                <button id="chart-toggle-btn" type="button" class="chart-toggle w-full flex items-center justify-between text-left px-4 py-3" aria-expanded="false" aria-controls="chart-content">
+                    <span class="text-sm font-semibold">Postęp w Grze</span>
+                    <span id="chart-toggle-icon" class="text-slate-300 text-sm">▼</span>
+                </button>
+                <div id="chart-content" class="hidden px-4 pb-4">
+                    <div class="relative h-64 bg-slate-900/50 p-2 rounded-lg">
+                        <canvas id="game-chart-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            
             
             <div class="card mb-4">
                 <h3 class="text-sm font-semibold mb-2">Historia Rund (Usuń wpis):</h3>
