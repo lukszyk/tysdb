@@ -323,13 +323,26 @@ function updateFirstPlayerMarker() {
     gameState.players.forEach((p, i) => { 
         const nameEl = document.getElementById(`player-name-${i}`); 
         const cardEl = scoreboard.children[i]; 
+        const isStartPlayer = (i === gameState.initialFirstPlayerIndex);
+
         if (nameEl) { 
-            let markers = ''; 
-            if (i === gameState.firstPlayerIndex) markers += '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Na musiku">M</span>'; 
-            if (i === gameState.initialFirstPlayerIndex) markers += '<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Rozpoczynający RUNDĘ 1">S</span>'; 
-            nameEl.innerHTML = `<span>${p.name}</span> ${markers}`; 
+            // Złota gwiazdka przed imieniem dla gracza rozpoczynającego
+            const startStar = isStartPlayer 
+                ? '<span class="text-amber-400 font-normal mr-1" title="Rozpoczynający mecz (Runda 1)">★</span>' 
+                : '';
+
+            // Dynamiczny badge MUSIK
+            const musikBadge = (i === gameState.firstPlayerIndex) 
+                ? '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Na musiku">M</span>' 
+                : ''; 
+
+            nameEl.innerHTML = `<span class="flex items-center justify-center">${startStar}<span>${p.name}</span></span> ${musikBadge}`; 
         } 
-        if (cardEl) cardEl.classList.toggle('is-musik', i === gameState.firstPlayerIndex); 
+        
+        if (cardEl) {
+            // Stylizacja dla gracza na musiku
+            cardEl.classList.toggle('is-musik', i === gameState.firstPlayerIndex); 
+        } 
     }); 
 }
 
