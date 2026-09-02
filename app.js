@@ -44,12 +44,13 @@ const scoreInputs = document.getElementById('score-inputs');
 const addRoundBtn = document.getElementById('add-round-btn');
 const backToMenuBtn = document.getElementById('back-to-menu-btn');
 const rotateFirstPlayerBtn = document.getElementById('rotate-first-player-btn');
+const firstPlayerBar = document.getElementById('first-player-bar');
+const addRoundHeading = document.getElementById('add-round-heading');
 const gameToStatsBtn = document.getElementById('game-to-stats-btn');
 const roundHistoryContainer = document.getElementById('round-history-container');
 const statsSummary = document.getElementById('stats-summary');
 const backFromStatsBtn = document.getElementById('back-from-stats-btn');
 const modalBackToMenuBtn = document.getElementById('modal-back-to-menu-btn');
-const roundInfoDisplay = document.getElementById('round-info-display');
 const statusMessageContainer = document.getElementById('status-message-container');
 const showLoadGameBtn = document.getElementById('show-load-game-btn');
 const loadGameMessage = document.getElementById('load-game-message');
@@ -234,7 +235,6 @@ function createChartConfig(canvasElement) {
                                 return 1;
                             },
                             borderDash: (context) => {
-                                // Przerywana linia dla progu 800 i 1000, aby nie myliła się z ciągłymi liniami graczy
                                 if (context.tick.value === 800 || context.tick.value === 1000) return [6, 4];
                                 return [];
                             }
@@ -258,10 +258,17 @@ function showTemporaryMessage(message, isError = false) {
 function renderRoundInfo() { 
     if (!gameState.isActive) return; 
     const currentRound = gameState.history.length + 1; 
-    roundInfoDisplay.innerHTML = `<span class="text-emerald-200/70">Runda: </span><span class="text-emerald-400 font-black text-base sm:text-lg">${currentRound}</span>`; 
+    
+    if (addRoundHeading) {
+        addRoundHeading.textContent = `Dodaj punkty za rundę: ${currentRound}`;
+    }
     
     const isRound1 = gameState.history.length === 0; 
-    rotateFirstPlayerBtn.classList.toggle('hidden', !isRound1);
+    if (firstPlayerBar) {
+        firstPlayerBar.classList.toggle('hidden', !isRound1);
+    } else if (rotateFirstPlayerBtn) {
+        rotateFirstPlayerBtn.classList.toggle('hidden', !isRound1);
+    }
 }
 
 function recalculateScores() { gameState.players.forEach(p => p.score = 0); [...gameState.history].reverse().forEach(round => { gameState.players.forEach(player => { player.score += round[player.name] || 0; }); }); if (gameState.players.length === 2) { gameState.firstPlayerIndex = gameState.history.length % 2 === 0 ? gameState.initialFirstPlayerIndex : (gameState.initialFirstPlayerIndex + 1) % 2; } else { gameState.firstPlayerIndex = (gameState.initialFirstPlayerIndex + gameState.history.length) % gameState.players.length; } updateScoreValues(); updateFirstPlayerMarker(); renderRoundHistory(); renderRoundInfo(); }
@@ -318,8 +325,8 @@ function updateFirstPlayerMarker() {
         const cardEl = scoreboard.children[i]; 
         if (nameEl) { 
             let markers = ''; 
-            if (i === gameState.firstPlayerIndex) markers += '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Na musiku">MUSIK</span>'; 
-            if (i === gameState.initialFirstPlayerIndex) markers += '<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Rozpoczynający RUNDĘ 1">START</span>'; 
+            if (i === gameState.firstPlayerIndex) markers += '<span class="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Na musiku">M</span>'; 
+            if (i === gameState.initialFirstPlayerIndex) markers += '<span class="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ml-1" title="Rozpoczynający RUNDĘ 1">S</span>'; 
             nameEl.innerHTML = `<span>${p.name}</span> ${markers}`; 
         } 
         if (cardEl) cardEl.classList.toggle('is-musik', i === gameState.firstPlayerIndex); 
